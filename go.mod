@@ -1,6 +1,6 @@
 module github.com/terra-discover/bbcrs-helper-lib
 
-go 1.19
+go 1.22
 
 require (
 	github.com/bytedance/sonic v1.9.0
