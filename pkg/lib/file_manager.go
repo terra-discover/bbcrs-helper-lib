@@ -1,8 +1,10 @@
 package lib
 
 import (
+	"bytes"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -104,4 +106,24 @@ func GetImageScaleSize(filename string) (w int, h int, err error) {
 	}
 
 	return img.Width, img.Height, nil
+}
+
+func GetImageScaleSizeFromBytes(fileContent []byte) (w int, h int, err error) {
+	reader := bytes.NewReader(fileContent)
+
+	// Try decoding as JPEG
+	img, err := jpeg.DecodeConfig(reader)
+	if err == nil {
+		return img.Width, img.Height, nil
+	}
+
+	// Reset the reader and try decoding as PNG
+	reader.Seek(0, io.SeekStart)
+	img, err = png.DecodeConfig(reader)
+	if err == nil {
+		return img.Width, img.Height, nil
+	}
+
+	// Return error if both decoding attempts fail
+	return 0, 0, err
 }

@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -28,7 +29,6 @@ func HTTPRequest(method string, path string, headers map[string]string, body ...
 		payload = bytes.NewReader([]byte(body[0]))
 	}
 	request := httptest.NewRequest(method, path, payload)
-
 	if nil != headers {
 		for i := range headers {
 			request.Header.Add(i, headers[i])
@@ -50,14 +50,12 @@ func GetTest(app *fiber.App, path string, headers map[string]string) (*http.Resp
 func GetTestTimeout(app *fiber.App, msTimeout int, path string, headers map[string]string) (*http.Response, map[string]interface{}, error) {
 	var result map[string]interface{}
 	response, err := app.Test(HTTPRequest("GET", path, headers), msTimeout)
+	defer response.Body.Close()
 
 	if nil == err {
 		if bte, err := ioutil.ReadAll(response.Body); nil == err {
 			json.Unmarshal(bte, &result)
 		}
-	}
-	if response != nil && response.Body != nil {
-		defer response.Body.Close()
 	}
 
 	return response, result, err
@@ -72,14 +70,12 @@ func PostTest(app *fiber.App, path string, headers map[string]string, body ...st
 func PostTestTimeout(app *fiber.App, msTimeout int, path string, headers map[string]string, body ...string) (*http.Response, map[string]interface{}, error) {
 	var result map[string]interface{}
 	response, err := app.Test(HTTPRequest("POST", path, headers, body...), msTimeout)
+	defer response.Body.Close()
 
 	if nil == err {
 		if bte, err := ioutil.ReadAll(response.Body); nil == err {
 			json.Unmarshal(bte, &result)
 		}
-	}
-	if response != nil && response.Body != nil {
-		defer response.Body.Close()
 	}
 
 	return response, result, err
@@ -94,14 +90,12 @@ func PutTest(app *fiber.App, path string, headers map[string]string, body ...str
 func PutTestTimeout(app *fiber.App, msTimeout int, path string, headers map[string]string, body ...string) (*http.Response, map[string]interface{}, error) {
 	var result map[string]interface{}
 	response, err := app.Test(HTTPRequest("PUT", path, headers, body...), msTimeout)
+	defer response.Body.Close()
 
 	if nil == err {
 		if bte, err := ioutil.ReadAll(response.Body); nil == err {
 			json.Unmarshal(bte, &result)
 		}
-	}
-	if response != nil && response.Body != nil {
-		defer response.Body.Close()
 	}
 
 	return response, result, err
@@ -116,14 +110,12 @@ func DeleteTest(app *fiber.App, path string, headers map[string]string) (*http.R
 func DeleteTestTimeout(app *fiber.App, msTimeout int, path string, headers map[string]string) (*http.Response, map[string]interface{}, error) {
 	var result map[string]interface{}
 	response, err := app.Test(HTTPRequest("DELETE", path, headers), msTimeout)
+	defer response.Body.Close()
 
 	if nil == err {
 		if bte, err := ioutil.ReadAll(response.Body); nil == err {
 			json.Unmarshal(bte, &result)
 		}
-	}
-	if response != nil && response.Body != nil {
-		defer response.Body.Close()
 	}
 
 	return response, result, err
@@ -138,4 +130,35 @@ func JSONStringify(data interface{}, beautify ...bool) string {
 	}
 	j, _ := json.Marshal(data)
 	return string(j)
+}
+
+// MockHTTPClient interface of HTTPClient
+type MockHTTPClient struct {
+	app           *fiber.App
+	Timeout       time.Duration
+	DefaultClient *http.Client
+}
+
+// SetApp set fiber app
+func (m *MockHTTPClient) SetApp(app *fiber.App) {
+	m.app = app
+}
+
+// Do send mock request
+func (m *MockHTTPClient) Do(r *http.Request) (*http.Response, error) {
+	if r.URL.Host == "" && m.app != nil {
+		timeout := int64(m.Timeout)
+		timeouts := []int{}
+		if timeout > 0 {
+			timeouts = append(timeouts, int(timeout/1000000))
+		}
+
+		return m.app.Test(r, timeouts...)
+	}
+
+	if nil == m.DefaultClient {
+		m.DefaultClient = http.DefaultClient
+	}
+
+	return m.DefaultClient.Do(r)
 }

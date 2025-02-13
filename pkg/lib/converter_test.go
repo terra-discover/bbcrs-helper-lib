@@ -1,12 +1,13 @@
 package lib
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/gofiber/fiber/v2/utils"
+	"github.com/google/uuid"
 )
 
 func TestConvertToMD5(t *testing.T) {
@@ -100,93 +101,709 @@ func TestConvertSliceIntToStr(t *testing.T) {
 	utils.AssertEqual(t, "1,2,3,4", res)
 }
 
-func TestConvertDatetimeToDate(t *testing.T) {
-	datetimeNow := time.Now().UTC()
+func TestConvertStrToArrObj(t *testing.T) {
+	value := `[{"index":"value"}]`
+	res := ConvertStrToArrObj(value)
+	utils.AssertEqual(t, "value", res[0]["index"])
+}
 
-	year, month, day := datetimeNow.Date()
+func TestConvertSliceStrToStr(t *testing.T) {
+	value := []string{"active", "inactive", "suspend"}
+	res := ConvertSliceStrToStr(value, ",")
+	utils.AssertEqual(t, "active,inactive,suspend", res)
+}
 
-	dateNow, err := time.Parse("2006-1-2", fmt.Sprintf("%d-%d-%d", year, int(month), day))
-	utils.AssertEqual(t, nil, err, "parsing date")
+func TestConvertSliceUUIDToSliceStr(t *testing.T) {
+	uuid1 := uuid.New()
+	uuid2 := uuid.New()
+	uuid3 := uuid.New()
 
 	type args struct {
-		value time.Time
+		listUUID []uuid.UUID
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    time.Time
-		wantErr bool
+		name       string
+		args       args
+		wantResult []string
 	}{
 		{
-			name: "success",
+			name: "slice uuid converted",
 			args: args{
-				value: datetimeNow,
+				listUUID: []uuid.UUID{
+					uuid1,
+					uuid2,
+					uuid3,
+				},
 			},
-			want:    dateNow,
-			wantErr: false,
-		},
-		{
-			name: "error",
-			args: args{
-				value: time.Time{}.AddDate(-1000000, 0, 0),
+			wantResult: []string{
+				uuid1.String(),
+				uuid2.String(),
+				uuid3.String(),
 			},
-			want:    time.Time{},
-			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ConvertDatetimeToDate(tt.args.value)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ConvertDatetimeToDate() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ConvertDatetimeToDate() = %v, want %v", got, tt.want)
+			if gotResult := ConvertSliceUUIDToSliceStr(tt.args.listUUID); !reflect.DeepEqual(gotResult, tt.wantResult) {
+				t.Errorf("ConvertSliceUUIDToSliceStr() = %v, want %v", gotResult, tt.wantResult)
 			}
 		})
 	}
 }
 
-func TestRemoveEmptySliceStrPtr(t *testing.T) {
+func TestStrLeadingZerosRemove(t *testing.T) {
+	str := "026"
+	res := StrLeadingZerosRemove(str)
+	utils.AssertEqual(t, true, len(res) > 0)
+}
+
+func TestForceStr(t *testing.T) {
+	str1 := "abcd"
+
 	type args struct {
-		values []*string
+		input *string
 	}
 	tests := []struct {
-		name             string
-		args             args
-		wantResultLength int
+		name       string
+		args       args
+		wantResult string
 	}{
 		{
-			name: "success, no result",
+			name: "filled input == result",
 			args: args{
-				values: []*string{
-					nil,
-					Strptr("   "),
-					Strptr(""),
-				},
+				input: &str1,
 			},
-			wantResultLength: 0,
+			wantResult: str1,
 		},
 		{
-			name: "success, 2 result",
+			name: "nil input; result = empty string",
 			args: args{
-				values: []*string{
-					nil,
-					Strptr("   "),
-					Strptr(""),
-					Strptr(" abc "),
-					Strptr("cde"),
-				},
+				input: nil,
 			},
-			wantResultLength: 2,
+			wantResult: "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if gotResult := RemoveEmptySliceStrPtr(tt.args.values); !reflect.DeepEqual(len(gotResult), tt.wantResultLength) {
-				t.Errorf("RemoveEmptySliceStrPtr() length = %v, want length %v", len(gotResult), tt.wantResultLength)
+			if gotResult := ForceStr(tt.args.input); gotResult != tt.wantResult {
+				t.Errorf("ForceStr() = %v, want %v", gotResult, tt.wantResult)
 			}
 		})
+	}
+}
+
+func TestForceStrPtr(t *testing.T) {
+	str1 := "abcd"
+	emptyStr := ""
+
+	type args struct {
+		input *string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *string
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &str1,
+			},
+			wantResult: &str1,
+		},
+		{
+			name: "nil input; result = empty string",
+			args: args{
+				input: nil,
+			},
+			wantResult: &emptyStr,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceStrPtr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceInt(t *testing.T) {
+	num1 := 123
+
+	type args struct {
+		input *int
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult int
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &num1,
+			},
+			wantResult: num1,
+		},
+		{
+			name: "nil input; result = 0",
+			args: args{
+				input: nil,
+			},
+			wantResult: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceInt(tt.args.input); gotResult != tt.wantResult {
+				t.Errorf("ForceInt() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceIntPtr(t *testing.T) {
+	num1 := 123
+	zeroInt := 0
+
+	type args struct {
+		input *int
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *int
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &num1,
+			},
+			wantResult: &num1,
+		},
+		{
+			name: "nil input; result = 0",
+			args: args{
+				input: nil,
+			},
+			wantResult: &zeroInt,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceIntPtr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceInt64(t *testing.T) {
+	num1 := int64(123)
+
+	type args struct {
+		input *int64
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult int64
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &num1,
+			},
+			wantResult: num1,
+		},
+		{
+			name: "nil input; result = 0",
+			args: args{
+				input: nil,
+			},
+			wantResult: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceInt64(tt.args.input); gotResult != tt.wantResult {
+				t.Errorf("ForceInt64() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceInt64Ptr(t *testing.T) {
+	num1 := int64(123)
+	zeroInt64 := int64(0)
+
+	type args struct {
+		input *int64
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *int64
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &num1,
+			},
+			wantResult: &num1,
+		},
+		{
+			name: "nil input; result = 0",
+			args: args{
+				input: nil,
+			},
+			wantResult: &zeroInt64,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceInt64Ptr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceBool(t *testing.T) {
+	cond1 := true
+	cond2 := false
+
+	type args struct {
+		input *bool
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult bool
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &cond1,
+			},
+			wantResult: cond1,
+		},
+		{
+			name: "filled input == result",
+			args: args{
+				input: &cond2,
+			},
+			wantResult: cond2,
+		},
+		{
+			name: "nil input; result = false",
+			args: args{
+				input: nil,
+			},
+			wantResult: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceBool(tt.args.input); gotResult != tt.wantResult {
+				t.Errorf("ForceBool() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceBoolPtr(t *testing.T) {
+	cond := true
+	utils.AssertEqual(t, true, *ForceBoolPtr(&cond), "Test positive case")
+
+	falseCond := false
+	utils.AssertEqual(t, false, *ForceBoolPtr(&falseCond), "Test negative case")
+
+	utils.AssertEqual(t, false, *ForceBoolPtr(nil), "Test nil case")
+}
+
+func TestForceFloat64(t *testing.T) {
+	num1 := float64(123.00)
+
+	type args struct {
+		input *float64
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult float64
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &num1,
+			},
+			wantResult: num1,
+		},
+		{
+			name: "nil input; result = 0",
+			args: args{
+				input: nil,
+			},
+			wantResult: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceFloat64(tt.args.input); gotResult != tt.wantResult {
+				t.Errorf("ForceFloat64() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceFloat64Ptr(t *testing.T) {
+	num1 := float64(123.00)
+	zeroFloat64 := float64(0)
+
+	type args struct {
+		input *float64
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *float64
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &num1,
+			},
+			wantResult: &num1,
+		},
+		{
+			name: "nil input; result = 0",
+			args: args{
+				input: nil,
+			},
+			wantResult: &zeroFloat64,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceFloat64Ptr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceStrfmtDateTime(t *testing.T) {
+	datetime1 := strfmt.DateTime(time.Now())
+
+	type args struct {
+		input *strfmt.DateTime
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult strfmt.DateTime
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &datetime1,
+			},
+			wantResult: datetime1,
+		},
+		{
+			name: "nil input; result = strfmt.DateTime{}",
+			args: args{
+				input: nil,
+			},
+			wantResult: strfmt.DateTime{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceStrfmtDateTime(tt.args.input); !reflect.DeepEqual(gotResult, tt.wantResult) {
+				t.Errorf("ForceStrfmtDateTime() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceStrfmtDateTimePtr(t *testing.T) {
+	datetime1 := strfmt.DateTime(time.Now())
+	datetimeZero := strfmt.DateTime{}
+
+	type args struct {
+		input *strfmt.DateTime
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *strfmt.DateTime
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &datetime1,
+			},
+			wantResult: &datetime1,
+		},
+		{
+			name: "nil input; result = strfmt.DateTime{}",
+			args: args{
+				input: nil,
+			},
+			wantResult: &datetimeZero,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceStrfmtDateTimePtr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceStrfmtDate(t *testing.T) {
+	date1 := strfmt.Date(time.Now())
+
+	type args struct {
+		input *strfmt.Date
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult strfmt.Date
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &date1,
+			},
+			wantResult: date1,
+		},
+		{
+			name: "nil input; result = strfmt.Date{}",
+			args: args{
+				input: nil,
+			},
+			wantResult: strfmt.Date{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceStrfmtDate(tt.args.input); !reflect.DeepEqual(gotResult, tt.wantResult) {
+				t.Errorf("ForceStrfmtDate() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceStrfmtDatePtr(t *testing.T) {
+	date1 := strfmt.Date(time.Now())
+	dateZero := strfmt.Date{}
+
+	type args struct {
+		input *strfmt.Date
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *strfmt.Date
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &date1,
+			},
+			wantResult: &date1,
+		},
+		{
+			name: "nil input; result = strfmt.Date{}",
+			args: args{
+				input: nil,
+			},
+			wantResult: &dateZero,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceStrfmtDatePtr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceTime(t *testing.T) {
+	time1 := time.Now()
+
+	type args struct {
+		input *time.Time
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult time.Time
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &time1,
+			},
+			wantResult: time1,
+		},
+		{
+			name: "nil input; result = time.Time{}",
+			args: args{
+				input: nil,
+			},
+			wantResult: time.Time{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceTime(tt.args.input); !reflect.DeepEqual(gotResult, tt.wantResult) {
+				t.Errorf("ForceTime() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceTimePtr(t *testing.T) {
+	time1 := time.Now()
+	timeZero := time.Time{}
+
+	type args struct {
+		input *time.Time
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *time.Time
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &time1,
+			},
+			wantResult: &time1,
+		},
+		{
+			name: "nil input; result = time.Time{}",
+			args: args{
+				input: nil,
+			},
+			wantResult: &timeZero,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceTimePtr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestForceUUID(t *testing.T) {
+	uuid1 := uuid.New()
+
+	type args struct {
+		input *uuid.UUID
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult uuid.UUID
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &uuid1,
+			},
+			wantResult: uuid1,
+		},
+		{
+			name: "nil input; result = uuid.Nil",
+			args: args{
+				input: nil,
+			},
+			wantResult: uuid.Nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotResult := ForceUUID(tt.args.input); !reflect.DeepEqual(gotResult, tt.wantResult) {
+				t.Errorf("ForceUUID() = %v, want %v", gotResult, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestForceUUIDPtr(t *testing.T) {
+	uuid1 := uuid.New()
+	uuidNil := uuid.Nil
+
+	type args struct {
+		input *uuid.UUID
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult *uuid.UUID
+	}{
+		{
+			name: "filled input == result",
+			args: args{
+				input: &uuid1,
+			},
+			wantResult: &uuid1,
+		},
+		{
+			name: "nil input; result = uuid.Nil",
+			args: args{
+				input: nil,
+			},
+			wantResult: &uuidNil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult := ForceUUIDPtr(tt.args.input)
+			utils.AssertEqual(t, tt.wantResult != nil, gotResult != nil, "compare pointer")
+			if tt.wantResult != nil && gotResult != nil {
+				utils.AssertEqual(t, *tt.wantResult, *gotResult, "compare value")
+			}
+		})
+	}
+}
+
+func TestFloatToFormattedStr(t *testing.T) {
+	mapTest := map[float64]string{
+		10000:    "10,000",
+		12500.12: "12,501",
+		500:      "500",
+		10.1:     "11",
+		19191919: "19,191,919",
+	}
+
+	for inp, expected := range mapTest {
+		utils.AssertEqual(t, expected, FloatToFormattedStr(inp), "Test FloatToFormattedStr")
 	}
 }

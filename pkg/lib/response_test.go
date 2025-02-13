@@ -113,6 +113,22 @@ func TestErrorInternal(t *testing.T) {
 	utils.AssertEqual(t, 500, response.StatusCode, "Example 500 response")
 }
 
+func TestErrorServerDown(t *testing.T) {
+	app := fiber.New()
+
+	app.Use(func(c *fiber.Ctx) error {
+		return ErrorServerOverload(c)
+	})
+
+	response, err := app.Test(httptest.NewRequest("GET", "/", nil))
+	if nil != err {
+		t.Error(err)
+		return
+	}
+
+	utils.AssertEqual(t, 529, response.StatusCode, "Example 529 response")
+}
+
 func TestGone(t *testing.T) {
 	app := fiber.New()
 

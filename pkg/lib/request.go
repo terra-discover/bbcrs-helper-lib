@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -8,18 +9,19 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
-	"gorm.io/gorm"
 )
 
 // VALIDATOR validate request body
 var VALIDATOR *validator.Validate = validator.New()
 
 const (
+	specialcharacter            = `^[A-z0-9 ]+$`
 	alphaNumUniCodeSpacePattern = `^[\p{L}\p{N} ]+$`
 	customPhoneNumber           = `^\+[1-9]\d{1,31}$` // using validator e164 with custom length 32 characters (default e164 is 15 characters)
 )
 
 func init() {
+	VALIDATOR.RegisterValidation("specialcharacter", customValidator(specialcharacter))
 	VALIDATOR.RegisterValidation("alphanumunicodespace", customValidator(alphaNumUniCodeSpacePattern))
 	VALIDATOR.RegisterValidation("customphonenumber", customValidator(customPhoneNumber))
 }
@@ -30,6 +32,11 @@ func customValidator(pattern string) validator.Func {
 		re := regexp.MustCompile(pattern)
 		return re.MatchString(str)
 	}
+}
+
+// HTTPClient http client interface
+type HTTPClient interface {
+	Do(*http.Request) (*http.Response, error)
 }
 
 // GetXUserID provide user id by http headers
@@ -73,7 +80,7 @@ func GetXCorporateID(c *fiber.Ctx) *uuid.UUID {
 }
 
 // GetLanguage get language by http header Accept-Language
-func GetLanguage(c *fiber.Ctx, db ...*gorm.DB) string {
+func GetLanguage(c *fiber.Ctx) string {
 	lang := viper.GetString("LANGUAGE")
 	acceptLanguage := string(c.Request().Header.Peek("accept-language"))
 	if acceptLanguage != "" && len(acceptLanguage) >= 2 {
@@ -92,6 +99,15 @@ func GetLanguage(c *fiber.Ctx, db ...*gorm.DB) string {
 // BodyParser with validation
 func BodyParser(c *fiber.Ctx, payload interface{}) error {
 	if err := c.BodyParser(payload); nil != err {
+		return err
+	}
+
+	return VALIDATOR.Struct(payload)
+}
+
+// QueryParser with validation
+func QueryParser(c *fiber.Ctx, payload interface{}) error {
+	if err := c.QueryParser(payload); nil != err {
 		return err
 	}
 
