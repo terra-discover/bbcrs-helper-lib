@@ -46,12 +46,16 @@ var patterns []sqlPatterns = []sqlPatterns{
 }
 
 var validateMessages map[string]string = map[string]string{
-	"required": "%v is required %v",
-	"gte":      "%v must be greater than or equal %v",
-	"gt":       "%v must be greater than %v",
-	"lte":      "%v must be less than or equal %v",
-	"lt":       "%v must be less than %v",
-	"unique":   "%v already exists %v",
+	"required":         "%v is required %v",
+	"gte":              "%v must be greater than or equal %v",
+	"gt":               "%v must be greater than %v",
+	"lte":              "%v must be less than or equal %v",
+	"lt":               "%v must be less than %v",
+	"unique":           "%v already exists %v",
+	"specialcharacter": "%v must use a valid alphanumeric character only %v",
+	"email":            "%v format is invalid %v",
+	"date":             "%v format is invalid %v",
+	"numeric":          "%v must be a number %v",
 }
 
 // Send response
@@ -101,6 +105,7 @@ func Send(c *fiber.Ctx, status int, responses ...interface{}) error {
 						errorData.Criteria = err.Param()
 					}
 
+					errorData.Message = fmt.Sprintf("Invalid data %v", errorData.Name) //default message if validation translation not exists
 					if m, ok := validateMessages[errorData.Validator]; ok {
 						errorData.Message = fmt.Sprintf(m, errorData.Name, errorData.Criteria)
 					}
@@ -167,8 +172,16 @@ func ErrorInternal(c *fiber.Ctx, message ...string) error {
 	if len(message) == 0 {
 		message = append(message, "Internal server error")
 	}
-
 	return Send(c, 500, message[0])
+}
+
+// ErrorServerOverload send http 503 internal server error
+func ErrorServerOverload(c *fiber.Ctx, message ...string) error {
+	if len(message) == 0 {
+		message = append(message, "Service Temporarily Unavailable")
+	}
+
+	return Send(c, 529, message[0])
 }
 
 // ErrorConflict send http 409 conflict
@@ -228,13 +241,20 @@ func ErrorConflict(c *fiber.Ctx, message ...interface{}) error {
 					}
 				}
 			}
+			// nss := strings.Split(fieldPath, ".")
+			// nssString := []string{}
+			// for i := 0; i < len(nss); i++ {
+			// 	nssString = append(nssString, strcase.ToCamel(nss[i]))
+			// }
 			errorData := ErrorData{
+				// Namespace: strings.Join(nssString, "."),
 				Name:      strcase.ToSnake(field),
 				Path:      fieldPath,
 				Validator: pattern.validator,
 				Value:     nil,
 			}
 
+			errorData.Message = fmt.Sprintf("Invalid data %v", errorData.Name) //default message if validation translation not exists
 			if m, ok := validateMessages[pattern.validator]; ok {
 				errorData.Message = fmt.Sprintf(m, errorData.Name, "")
 			}

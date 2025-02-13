@@ -179,13 +179,17 @@ func TestGetLanguage(t *testing.T) {
 
 func TestBodyParser(t *testing.T) {
 	type sample struct {
-		Name *string `json:"name" validate:"required,alphanumunicodespace,gte=9"`
+		Name *string `json:"name" validate:"required,specialcharacter,gte=8"`
 	}
 
 	app := fiber.New()
 	app.Post("/validate", func(c *fiber.Ctx) error {
 		data := new(sample)
-		return ErrorBadRequest(c, BodyParser(c, data))
+		if err := BodyParser(c, data); nil != err {
+			return ErrorBadRequest(c, err)
+		}
+
+		return OK(c)
 	})
 
 	res, body, err := PostTest(app, "/validate", nil, "")
@@ -196,4 +200,41 @@ func TestBodyParser(t *testing.T) {
 	res, body, err = PostTest(app, "/validate", nil, `{"name":"john"}`)
 	utils.AssertEqual(t, nil, err)
 	utils.AssertEqual(t, 400, res.StatusCode)
+
+	res, body, err = PostTest(app, "/validate", nil, `{"name":"john doe"}`)
+	utils.AssertEqual(t, nil, err)
+	utils.AssertEqual(t, 200, res.StatusCode)
+}
+
+func TestQueryParser(t *testing.T) {
+	type sample struct {
+		Age *int `query:"age" validate:"required"`
+	}
+
+	app := fiber.New()
+	app.Get("/validate", func(c *fiber.Ctx) error {
+		data := new(sample)
+		if err := QueryParser(c, data); nil != err {
+			return ErrorBadRequest(c, err)
+		}
+
+		return OK(c)
+	})
+
+	res, body, err := GetTest(app, "/validate", nil)
+	utils.AssertEqual(t, nil, err)
+	utils.AssertEqual(t, false, nil == body)
+	utils.AssertEqual(t, 400, res.StatusCode)
+
+	res, body, err = GetTest(app, "/validate", nil)
+	utils.AssertEqual(t, nil, err)
+	utils.AssertEqual(t, 400, res.StatusCode)
+
+	res, body, err = GetTest(app, "/validate?age=twenty", nil)
+	utils.AssertEqual(t, nil, err)
+	utils.AssertEqual(t, 400, res.StatusCode)
+
+	res, body, err = GetTest(app, "/validate?age=12", nil)
+	utils.AssertEqual(t, nil, err)
+	utils.AssertEqual(t, 200, res.StatusCode)
 }

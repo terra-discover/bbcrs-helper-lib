@@ -1,9 +1,11 @@
 package lib
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 )
 
@@ -43,6 +45,24 @@ func IsEmptyInt(number int) (isEmpty bool) {
 	return
 }
 
+// IsEmptyInt64Ptr
+func IsEmptyInt64Ptr(number *int64) (isEmpty bool) {
+	if number == nil || *number <= 0 {
+		isEmpty = true
+	}
+
+	return
+}
+
+// IsEmptyInt64
+func IsEmptyInt64(number int64) (isEmpty bool) {
+	if number <= 0 {
+		isEmpty = true
+	}
+
+	return
+}
+
 // IsEmptyStrPtr
 func IsEmptyStrPtr(str *string) (isEmpty bool) {
 	if str == nil || len(strings.TrimSpace(*str)) == 0 {
@@ -64,15 +84,6 @@ func IsEmptyStr(str string) (isEmpty bool) {
 // IsFalsyBoolPtr
 func IsFalsyBoolPtr(cond *bool) (isFalsy bool) {
 	if cond == nil || !(*cond) {
-		isFalsy = true
-	}
-
-	return
-}
-
-// IsFalsyBool
-func IsFalsyBool(cond bool) (isFalsy bool) {
-	if !(cond) {
 		isFalsy = true
 	}
 
@@ -115,50 +126,30 @@ func IsZeroTime(moment time.Time) (isZero bool) {
 	return
 }
 
-// ContainsDuplicatedUUID
-func ContainsDuplicatedUUID(listUUID []uuid.UUID) (isDuplicated bool) {
-	if len(listUUID) == 0 {
-		return
-	}
-
-	tempListUUID := []uuid.UUID{}
-
-	for _, item := range listUUID {
-		for _, tempItem := range tempListUUID {
-			if tempItem == item {
-				isDuplicated = true
-				return
-			}
-		}
-
-		tempListUUID = append(tempListUUID, item)
+// IsZeroStrfmtTimePtr
+func IsZeroStrfmtTimePtr(moment *strfmt.DateTime) (isZero bool) {
+	if moment == nil || time.Time(*moment).IsZero() {
+		isZero = true
 	}
 
 	return
 }
 
-// ContainsDuplicatedFoldStrPtr - check duplicated strptr using case insensitive like strings.EqualFold()
-func ContainsDuplicatedFoldStrPtr(listStr []*string) (isDuplicated bool) {
-	if len(listStr) == 0 {
-		return
+// IsZeroStrfmtTime
+func IsZeroStrfmtTime(moment strfmt.DateTime) (isZero bool) {
+	if time.Time(moment).IsZero() {
+		isZero = true
 	}
 
-	tempListUUID := []string{}
+	return
+}
 
-	for _, item := range listStr {
-		if item == nil {
-			continue
-		}
-
-		for _, tempItem := range tempListUUID {
-			if strings.EqualFold(tempItem, *item) {
-				isDuplicated = true
-				return
-			}
-		}
-
-		tempListUUID = append(tempListUUID, *item)
-	}
-
+// IsSimilarStringPattern
+func IsSimilarStringPattern(a, b string) (isSimilar bool) {
+	// Create a regex pattern to match the "a" prefix
+	pattern := "^" + a
+	// Match the strings using the regex pattern
+	match, _ := regexp.MatchString(pattern, b)
+	isSimilar = match
 	return
 }

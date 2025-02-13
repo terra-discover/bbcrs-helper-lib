@@ -1,17 +1,18 @@
 package lib
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	mathRand "math/rand"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // On using math rand, you must call mathRand.New(mathRand.NewSource(time.Now().UnixNano())) or call globally mathRand.Seed(time.Now().UnixNano())
@@ -61,72 +62,36 @@ func GeneratePassword(passwordLength, minSpecialChar, minNum, minUpperCase int) 
 }
 
 // CipherEncrypt for encrypt data with AES algorithm
-func CipherEncrypt(text, key string) ([]byte, error) {
-	block, err := aes.NewCipher([]byte(key))
-	if err != nil {
-		return nil, err
+func CipherEncrypt(plaintext, key string) ([]byte, error) {
+	c, err := aes.NewCipher([]byte(key))
+	if err == nil {
+		gcm, err := cipher.NewGCM(c)
+		if err == nil {
+			nonce := make([]byte, gcm.NonceSize())
+			if _, err = io.ReadFull(rand.Reader, nonce); err == nil {
+				return gcm.Seal(nonce, nonce, []byte(plaintext), nil), nil
+			}
+		}
 	}
 
-	padding := aes.BlockSize - len(text)%aes.BlockSize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	msg := append([]byte(text), padtext...)
-
-	ciphertext := make([]byte, aes.BlockSize+len(msg))
-	iv := ciphertext[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
-
-	cfb := cipher.NewCFBEncrypter(block, iv)
-	cfb.XORKeyStream(ciphertext[aes.BlockSize:], []byte(msg))
-	finalMsg := strings.Replace(base64.URLEncoding.EncodeToString(ciphertext), "=", "", -1)
-	return []byte(finalMsg), nil
+	return nil, err
 }
 
 // CipherDecrypt for decrypt data with AES algorithm
 func CipherDecrypt(ciphertext []byte, key string) ([]byte, error) {
-	text := string(ciphertext)
-	block, err := aes.NewCipher([]byte(key))
-	if err != nil {
-		return nil, err
+	c, err := aes.NewCipher([]byte(key))
+	if err == nil {
+		gcm, err := cipher.NewGCM(c)
+		if err == nil {
+			nonceSize := gcm.NonceSize()
+			if len(ciphertext) < nonceSize {
+				return nil, errors.New("ciphertext too short")
+			}
+			nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+			return gcm.Open(nil, nonce, ciphertext, nil)
+		}
 	}
-
-	if m := len(text) % 4; m != 0 {
-		text += strings.Repeat("=", 4-m)
-	}
-
-	decodedMsg, err := base64.URLEncoding.DecodeString(text)
-	if err != nil {
-		return nil, err
-	}
-
-	if (len(decodedMsg) % aes.BlockSize) != 0 {
-		return nil, errors.New("blocksize must be multipe of decoded message length")
-	}
-
-	if len(decodedMsg) < aes.BlockSize {
-		return nil, errors.New("invalid block size")
-	}
-
-	iv := decodedMsg[:aes.BlockSize]
-	msg := decodedMsg[aes.BlockSize:]
-
-	cfb := cipher.NewCFBDecrypter(block, iv)
-	cfb.XORKeyStream(msg, msg)
-
-	length := len(msg)
-	unpadding := int(msg[length-1])
-
-	if unpadding > length {
-		return nil, errors.New("unpad error. This could happen when incorrect encryption key is used")
-	}
-
-	unpadMsg := msg[:(length - unpadding)]
-	if err != nil {
-		return nil, err
-	}
-
-	return unpadMsg, nil
+	return nil, err
 }
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
@@ -150,4 +115,19 @@ func RandomString(length int, charset string) string {
 		b[i] = charset[seededRand.Intn(len(charset))]
 	}
 	return string(b)
+}
+
+// RandomCode func
+func RandomCode(length int) string {
+	var codes = []rune("1234567890")
+	b := make([]rune, length)
+	for i := range b {
+		b[i] = codes[mathRand.Intn(len(codes))]
+	}
+	return string(b)
+}
+
+// ToUUID Convert everything To UUID v5
+func ToUUID(s interface{}) uuid.UUID {
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("%v", s)))
 }

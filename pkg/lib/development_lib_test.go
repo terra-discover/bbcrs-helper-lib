@@ -1,7 +1,9 @@
 package lib
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/utils"
@@ -65,4 +67,25 @@ func TestJSONStringify(t *testing.T) {
 	utils.AssertEqual(t, `{"number":1}`, JSONStringify(input2), "number test")
 	utils.AssertEqual(t, `{}`, JSONStringify(input1, true), "beatify empty test")
 	utils.AssertEqual(t, "{\n  \"number\": 1\n}", JSONStringify(input2, true), "beatify number test")
+}
+
+func TestMockHTTPClient(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.Status(200).SendString("OK")
+	})
+
+	var mock HTTPClient
+	client := &MockHTTPClient{Timeout: 30 * time.Second}
+	client.SetApp(app)
+	mock = client
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	res, _ := mock.Do(req)
+	utils.AssertEqual(t, 200, res.StatusCode)
+
+	req, _ = http.NewRequest("GET", "http://localhost:9281/", nil)
+	_, err := mock.Do(req)
+	utils.AssertEqual(t, false, nil == err)
 }

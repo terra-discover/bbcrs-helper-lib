@@ -1,10 +1,10 @@
 package lib
 
 import (
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/gofiber/fiber/v2/utils"
 	"github.com/google/uuid"
 )
@@ -50,6 +50,26 @@ func TestIsEmptyInt(t *testing.T) {
 	utils.AssertEqual(t, false, res)
 }
 
+func TestIsEmptyInt64Ptr(t *testing.T) {
+	var number *int64
+	res := IsEmptyInt64Ptr(number)
+	utils.AssertEqual(t, true, res)
+
+	number = Int64ptr(1)
+	res = IsEmptyInt64Ptr(number)
+	utils.AssertEqual(t, false, res)
+}
+
+func TestIsEmptyInt64(t *testing.T) {
+	var number int64
+	res := IsEmptyInt64(number)
+	utils.AssertEqual(t, true, res)
+
+	number = 1
+	res = IsEmptyInt64(number)
+	utils.AssertEqual(t, false, res)
+}
+
 func TestIsEmptyStrPtr(t *testing.T) {
 	var str *string
 	res := IsEmptyStrPtr(str)
@@ -80,23 +100,13 @@ func TestIsFalsyBoolPtr(t *testing.T) {
 	utils.AssertEqual(t, false, res)
 }
 
-func TestIsFalsyBool(t *testing.T) {
-	var isBool bool
-	res := IsFalsyBool(isBool)
-	utils.AssertEqual(t, true, res)
-
-	isBool = true
-	res = IsFalsyBool(isBool)
-	utils.AssertEqual(t, false, res)
-
-}
-
 func TestIsEmptyUUIDPtr(t *testing.T) {
 	var id *uuid.UUID
 	res := IsEmptyUUIDPtr(id)
 	utils.AssertEqual(t, true, res)
 
-	id = GenUUID()
+	newID := uuid.New()
+	id = &newID
 	res = IsEmptyUUIDPtr(id)
 	utils.AssertEqual(t, false, res)
 }
@@ -106,7 +116,7 @@ func TestIsEmptyUUID(t *testing.T) {
 	res := IsEmptyUUID(id)
 	utils.AssertEqual(t, true, res)
 
-	id = *GenUUID()
+	id = uuid.New()
 	res = IsEmptyUUID(id)
 	utils.AssertEqual(t, false, res)
 }
@@ -147,113 +157,45 @@ func TestIsZeroTimePtr(t *testing.T) {
 	}
 }
 
-func TestContainsDuplicatedUUID(t *testing.T) {
-	uuid1 := *GenUUID()
-	uuid2 := *GenUUID()
+func TestIsZeroTime(t *testing.T) {
+	// Test zero time
+	zeroTime := time.Time{}
+	utils.AssertEqual(t, true, IsZeroTime(zeroTime))
 
-	type args struct {
-		listUUID []uuid.UUID
-	}
-	tests := []struct {
-		name             string
-		args             args
-		wantIsDuplicated bool
-	}{
-		{
-			name: "success, contains duplicated data",
-			args: args{
-				listUUID: []uuid.UUID{
-					uuid1,
-					uuid2,
-					uuid1,
-				},
-			},
-			wantIsDuplicated: true,
-		},
-		{
-			name: "success, not contains duplicated data",
-			args: args{
-				listUUID: []uuid.UUID{
-					uuid1,
-					uuid2,
-				},
-			},
-			wantIsDuplicated: false,
-		},
-		{
-			name: "success, empty input data",
-			args: args{
-				listUUID: []uuid.UUID{},
-			},
-			wantIsDuplicated: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if gotIsDuplicated := ContainsDuplicatedUUID(tt.args.listUUID); gotIsDuplicated != tt.wantIsDuplicated {
-				t.Errorf("ContainsDuplicatedUUID() = %v, want %v", gotIsDuplicated, tt.wantIsDuplicated)
-			}
-		})
-	}
+	// Test non-zero time
+	nonZeroTime := time.Now()
+	utils.AssertEqual(t, false, IsZeroTime(nonZeroTime))
 }
 
-func TestContainsDuplicatedFoldStrPtr(t *testing.T) {
-	str1 := "abc"
-	str2 := "bcd"
-	str3 := strings.ToUpper(str1)
+func TestIsZeroStrfmtTimePtr(t *testing.T) {
+	var date *strfmt.DateTime
 
-	type args struct {
-		listStr []*string
-	}
-	tests := []struct {
-		name             string
-		args             args
-		wantIsDuplicated bool
-	}{
-		{
-			name: "success, contains duplicated data",
-			args: args{
-				listStr: []*string{
-					&str1,
-					&str1,
-					&str2,
-				},
-			},
-			wantIsDuplicated: true,
-		},
-		{
-			name: "success, contains duplicated data (check case-insensitive)",
-			args: args{
-				listStr: []*string{
-					&str1,
-					&str3,
-				},
-			},
-			wantIsDuplicated: true,
-		},
-		{
-			name: "success, not contains duplicated data",
-			args: args{
-				listStr: []*string{
-					&str1,
-					&str2,
-				},
-			},
-			wantIsDuplicated: false,
-		},
-		{
-			name: "success, empty input data",
-			args: args{
-				listStr: []*string{},
-			},
-			wantIsDuplicated: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if gotIsDuplicated := ContainsDuplicatedFoldStrPtr(tt.args.listStr); gotIsDuplicated != tt.wantIsDuplicated {
-				t.Errorf("ContainsDuplicatedFoldStrPtr() = %v, want %v", gotIsDuplicated, tt.wantIsDuplicated)
-			}
-		})
-	}
+	res := IsZeroStrfmtTimePtr(date)
+	utils.AssertEqual(t, true, res)
+
+	now := time.Now()
+	newDate := (strfmt.DateTime)(now)
+	date = &newDate
+	res = IsZeroStrfmtTimePtr(date)
+	utils.AssertEqual(t, false, res)
+
+}
+
+func TestIsZeroStrfmtTime(t *testing.T) {
+	var date strfmt.DateTime
+
+	res := IsZeroStrfmtTime(date)
+	utils.AssertEqual(t, true, res)
+
+	now := time.Now()
+	date = (strfmt.DateTime)(now)
+	res = IsZeroStrfmtTime(date)
+	utils.AssertEqual(t, false, res)
+}
+
+func TestIsSimilarStringPattern(t *testing.T) {
+	a := "test"
+	b := "test oke"
+	res := IsSimilarStringPattern(a, b)
+	utils.AssertEqual(t, true, res)
 }
