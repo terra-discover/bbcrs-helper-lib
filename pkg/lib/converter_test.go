@@ -95,6 +95,44 @@ func TestConvertStrToTime(t *testing.T) {
 	utils.AssertEqual(t, gen, gen)
 }
 
+func TestConvertStrToTimeWFormat(t *testing.T) {
+	// Define test cases
+	tests := []struct {
+		input    string
+		layout   string
+		expected time.Time
+	}{
+		{
+			input:    "2025-02-28 19:48:59",
+			layout:   "2006-01-02 15:04:05",
+			expected: time.Date(2025, 2, 28, 19, 48, 59, 0, time.UTC),
+		},
+		{
+			input:    "28/02/2025",
+			layout:   "02/01/2006",
+			expected: time.Date(2025, 2, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			input:    "02-28-2025",
+			layout:   "01-02-2006",
+			expected: time.Date(2025, 2, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			input:    "19:48:59",
+			layout:   "15:04:05",
+			expected: time.Date(0, 1, 1, 19, 48, 59, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result := ConvertStrToTimeWFormat(test.input, test.layout)
+		if !result.Equal(test.expected) {
+			t.Errorf("For input '%s' with layout '%s', expected %v but got %v",
+				test.input, test.layout, test.expected, result)
+		}
+	}
+}
+
 func TestConvertSliceIntToStr(t *testing.T) {
 	value := []int{1, 2, 3, 4}
 	res := ConvertSliceIntToStr(value, ",")

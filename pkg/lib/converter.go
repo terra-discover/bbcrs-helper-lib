@@ -442,3 +442,17 @@ func ForceUUIDPtr(input *uuid.UUID) (result *uuid.UUID) {
 	result = input
 	return
 }
+
+func ConvertStrToTimeWFormat(value, layout string) (result time.Time) {
+	if layout == "" {
+		layout = "2006-01-02 15:04:05"
+	}
+
+	t, err := time.Parse(layout, value)
+	if err != nil {
+		return
+	}
+
+	result = t
+	return
+}

@@ -1,12 +1,14 @@
 package lib
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/gofiber/fiber/v2/utils"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func TestIsEmptyFloat64Ptr(t *testing.T) {
@@ -198,4 +200,25 @@ func TestIsSimilarStringPattern(t *testing.T) {
 	b := "test oke"
 	res := IsSimilarStringPattern(a, b)
 	utils.AssertEqual(t, true, res)
+}
+
+func TestMustReturnErrDB(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"ErrRecordNotFound", gorm.ErrRecordNotFound, false},
+		{"other error", errors.New("some error"), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MustReturnErrDB(tt.err)
+			if got != tt.want {
+				t.Errorf("MustReturnErrDB(%v) = %v; want %v", tt.err, got, tt.want)
+			}
+		})
+	}
 }
