@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // IsEmptyFloat64Ptr
@@ -152,4 +153,8 @@ func IsSimilarStringPattern(a, b string) (isSimilar bool) {
 	match, _ := regexp.MatchString(pattern, b)
 	isSimilar = match
 	return
+}
+
+func MustReturnErrDB(err error) bool {
+	return err != nil && err != gorm.ErrRecordNotFound
 }
