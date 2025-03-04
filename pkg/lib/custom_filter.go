@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -93,7 +92,7 @@ func CustomFilters(QueryFilters, QuerySearch, columnFilter string) (string, []in
 
 // NormalizeFieldName func
 func NormalizeFieldName(field string) string {
-	slices := strings.Split(field, ".")
+	slices := strings.Split(field, "__")
 	if len(slices) == 1 {
 		return field
 	}
@@ -114,7 +113,7 @@ func NormalizeFieldName(field string) string {
 //gocyclo:ignore
 func CreateFilter(jsonParams string) []QueryFilter {
 	var output interface{}
-	err := json.Unmarshal([]byte(jsonParams), &output)
+	err := JSONUnmarshal([]byte(jsonParams), &output)
 	if nil != err {
 		return []QueryFilter{}
 	}
@@ -274,8 +273,6 @@ func CreateWhereCause(filter QueryFilter, queryFilters *[]string, whereParams *[
 					v, o := val.(string)
 					if o {
 						values = append(values, strings.ToLower(v))
-					} else {
-						values = append(values, fmt.Sprintf("%v", v))
 					}
 				}
 
@@ -297,7 +294,7 @@ func CreateWhereCause(filter QueryFilter, queryFilters *[]string, whereParams *[
 // StringToJson func
 func StringToJson(value string) interface{} {
 	var output interface{}
-	json.Unmarshal([]byte(value), &output)
+	JSONUnmarshal([]byte(value), &output)
 	return output
 }
 
