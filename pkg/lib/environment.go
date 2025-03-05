@@ -19,6 +19,14 @@ func LoadEnvironment(defaultValues map[string]interface{}) {
 	MergeAllEnvironment()
 }
 
+func LoadTestEnvironment(defaultValues map[string]interface{}) {
+	LoadEnvironmentSystem(defaultValues)
+	LoadEnvironmentLocal()
+	LoadEnvironmentParameter(defaultValues)
+	LoadEnvironmentPrivate(defaultValues)
+	MergeAllEnvironment()
+}
+
 // LoadEnvironmentSystem Load System Environment
 func LoadEnvironmentSystem(defaultValues map[string]interface{}) {
 	systemEnv := viper.New()
@@ -92,4 +100,68 @@ func MergeAllEnvironment() {
 		}
 		os.Setenv(strings.ToUpper(keys[i]), stringValue)
 	}
+}
+
+var testingEnvironmentStorage map[string]interface{}
+
+/*
+ResetTestingEnvironment
+
+In unit test, we load default environment multiple times.
+
+This can cause a "too many open files" error because within the LoadEnvironment() method, there are several methods to open or read files.
+
+So, please using this function for reset environment in Unit Test.
+
+Source:
+  - https://stackoverflow.com/a/70832048
+*/
+func ResetTestingEnvironment() {
+	setEnv := func(env map[string]interface{}) {
+		// clear env first
+		viper.Reset()
+		os.Clearenv()
+
+		// get testing environment
+		// set to viper and os environment
+		for key := range env {
+			val := env[key]
+
+			viper.Set(key, val)
+
+			strValue := fmt.Sprintf("%v", val)
+			os.Setenv(key, strValue)
+		}
+	}
+
+	if len(testingEnvironmentStorage) > 0 {
+		setEnv(testingEnvironmentStorage)
+		return
+	}
+
+	// store new default environment data
+	testingEnvironmentStorage = make(map[string]interface{}, 0)
+
+	// config.Environment as default
+	testEnv := testEnvironment()
+	LoadTestEnvironment(testEnv)
+
+	keys := viper.AllKeys()
+
+	for i := range keys {
+		keyName := keys[i]
+		value := viper.Get(keyName)
+		testingEnvironmentStorage[keyName] = value
+	}
+
+	setEnv(testingEnvironmentStorage)
+}
+
+func testEnvironment() (result map[string]interface{}) {
+	// defaultEnv := config.Environment
+	// Disable sentry log
+	defaultEnv["enable_sentry_log"] = false
+
+	result = defaultEnv
+	return
 }
