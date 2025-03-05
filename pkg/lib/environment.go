@@ -158,7 +158,7 @@ func ResetTestingEnvironment() {
 }
 
 func testEnvironment() (result map[string]interface{}) {
-	// defaultEnv := config.Environment
+	defaultEnv := make(map[string]interface{})
 	// Disable sentry log
 	defaultEnv["enable_sentry_log"] = false
 
