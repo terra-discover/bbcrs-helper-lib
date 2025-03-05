@@ -11,6 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type GzipHeader struct {
+	Name    string    // auto uuid.New() if empty on compressing
+	ModTime time.Time // auto time.Now().UTC() if empty on compressing
+	Comment string
+}
+
 // Compress will translate raw string to compressed string
 func Compress(s string) string {
 	buff := bytes.Buffer{}
