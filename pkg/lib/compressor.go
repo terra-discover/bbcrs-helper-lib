@@ -2,8 +2,13 @@ package lib
 
 import (
 	"bytes"
+	"compress/gzip"
 	"compress/zlib"
+	"io"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // Compress will translate raw string to compressed string
@@ -46,4 +51,86 @@ func DecompressBytes(s string) ([]byte, error) {
 	var decompressedBuff bytes.Buffer
 	decompressedBuff.ReadFrom(decompressor)
 	return decompressedBuff.Bytes(), nil
+}
+
+func CompressGzipString(strVal string, header GzipHeader) (result string, err error) {
+	// Configure params
+	name := uuid.New().String()
+	modTime := time.Now().UTC()
+	comment := ""
+
+	if !IsEmptyStr(header.Name) {
+		name = header.Name
+	}
+
+	if !IsZeroTime(header.ModTime) {
+		modTime = header.ModTime
+	}
+
+	if !IsEmptyStr(header.Comment) {
+		comment = header.Comment
+	}
+
+	// Start compress
+	var buf bytes.Buffer
+
+	zw := gzip.NewWriter(&buf)
+	zw.Name = name
+	zw.ModTime = modTime
+	zw.Comment = comment
+
+	_, errWrite := zw.Write([]byte(strVal))
+	if errWrite != nil {
+		err = errWrite
+		return
+	}
+
+	errClose := zw.Close()
+	if errClose != nil {
+		err = errClose
+		return
+	}
+
+	// Set result
+	result = buf.String()
+	return
+}
+
+func DecompressGzipString(strVal string) (resultString string, header GzipHeader, err error) {
+	// Start Decompress
+	bufRead := new(bytes.Buffer)
+	bufRead.WriteString(strVal)
+
+	zr, errRead := gzip.NewReader(bufRead)
+	if errRead != nil {
+		err = errRead
+		return
+	}
+
+	// fmt.Printf("Name: %s\nComment: %s\nModTime: %s\n\n", zr.Name, zr.Comment, zr.ModTime.UTC())
+
+	strBuild := new(strings.Builder)
+
+	_, errCopy := io.Copy(strBuild, zr)
+	if errCopy != nil {
+		err = errCopy
+		return
+	}
+
+	errClose := zr.Close()
+	if errClose != nil {
+		err = errClose
+		return
+	}
+
+	// Set result
+	resultString = strBuild.String()
+
+	header = GzipHeader{
+		Name:    zr.Name,
+		ModTime: zr.ModTime,
+		Comment: zr.Comment,
+	}
+
+	return
 }
