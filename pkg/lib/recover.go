@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"time"
+
+	"github.com/getsentry/sentry-go"
 )
 
 // Recover errors
 func Recover() {
 	if err := recover(); nil != err {
+		// Send to sentry
+		// https://docs.sentry.io/platforms/go/usage/panics/
+		sentry.CurrentHub().Recover(err)
+		sentry.Flush(time.Second * 2)
+
 		PrintStackTrace(err)
 	}
 }
