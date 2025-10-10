@@ -1,4 +1,4 @@
- package lib
+package lib
 
 import (
 	"math"
@@ -42,4 +42,25 @@ func RoundPtr(a *float64) (b *float64) {
 	}
 	rounded := Round(*a)
 	return &rounded
+}
+
+// RoundSmart will limit comma to n digits
+func RoundSmart(val float64) float64 {
+	diff := math.Abs(val - math.Round(val))
+
+	// number behind - is n
+	if diff < 1e-4 {
+		return math.Floor(val)
+	}
+
+	// might have to changed the pow used as well (not sure yet)
+	factor := math.Pow(10, 4)
+	return math.Round(val*factor) / factor
+}
+
+// will times percent with 100 and add the remaining 0 to b
+func NormalizePercent(percent float64) (a, b float64) {
+	a = percent * 100
+	b = math.Pow(10, 4)
+	return math.Round(a), b
 }
