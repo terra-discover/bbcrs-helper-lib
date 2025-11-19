@@ -86,6 +86,11 @@ func FloatToStr(inputNum float64, prec ...int) string {
 	return strconv.FormatFloat(inputNum, 'f', precision, 64)
 }
 
+func IntToInt64(value int) int64 {
+	valueInt64 := int64(value)
+	return valueInt64
+}
+
 // ConvertJSONToStr func
 func ConvertJSONToStr(payload interface{}) string {
 	jsonData, _ := JSONMarshal(payload)
