@@ -67,7 +67,7 @@ func StrToInt64(value string) int64 {
 
 // StrToFloat func
 func StrToFloat(value string) float64 {
-	valueFloat, _ := strconv.ParseFloat(value, 32)
+	valueFloat, _ := strconv.ParseFloat(value, 64)
 	return valueFloat
 }
 
