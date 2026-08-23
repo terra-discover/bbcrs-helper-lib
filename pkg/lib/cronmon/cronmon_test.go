@@ -67,8 +67,7 @@ func TestLockTTLDefaultsToTwiceInterval(t *testing.T) {
 }
 
 // Without Redis the lock cannot be acquired, so the job is skipped rather than
-// run unlocked on every replica at once. The missing Sentry check-in is what
-// surfaces this, since the heartbeat lives in the Redis that is unavailable.
+// run unlocked on every replica at once.
 func TestRunWithoutRedisSkips(t *testing.T) {
 	m := New(nil, "integration-app")
 
