@@ -1,11 +1,9 @@
 // Package cronmon adds observability to scheduled jobs.
 //
-// Every service schedules its crons differently (gocron, a vendored fork, or a
-// DI-driven server), but they all share one Redis and one Sentry project. cronmon
-// wraps a job so that each run publishes a heartbeat to Redis under a common key
-// prefix and a check-in to Sentry. The heartbeat answers "what did this job do
-// last time?" and the Sentry check-in answers "did this job run at all?" - a
-// heartbeat alone cannot tell a job that is late from a job that is dead.
+// Each run publishes a heartbeat to Redis and a check-in to Sentry. The
+// heartbeat reports what a job did last time; the check-in reports whether it
+// ran at all, which a heartbeat alone cannot distinguish from a job that is
+// merely late.
 package cronmon
 
 import (
@@ -22,40 +20,36 @@ import (
 )
 
 const (
-	// HeartbeatKeyPrefix prefixes every cron heartbeat key. It is deliberately
-	// service-agnostic: scanning this prefix lists every cron of every service.
+	// HeartbeatKeyPrefix is service-agnostic on purpose: scanning it lists every
+	// cron of every service.
 	HeartbeatKeyPrefix = "cron:heartbeat:"
 
-	// heartbeatTTL keeps a heartbeat readable long after the job stopped running,
-	// so a dead cron stays visible instead of silently disappearing from the list.
+	// heartbeatTTL outlives the schedule by far so a dead cron stays visible
+	// instead of disappearing from the list.
 	heartbeatTTL = 30 * 24 * time.Hour
 
-	// sentryMinInterval is the shortest schedule Sentry cron monitors can express.
-	// Jobs faster than this are tracked by heartbeat only.
+	// sentryMinInterval is the shortest schedule Sentry cron monitors accept.
+	// Faster jobs are tracked by heartbeat only.
 	sentryMinInterval = time.Minute
 )
 
 // JobSpec describes a scheduled job.
 type JobSpec struct {
-	// Name identifies the job within its service, e.g. "remove_no_show_queue".
 	Name string
 
-	// Interval is how often the job is scheduled. It drives both the Sentry
-	// monitor schedule and the staleness threshold reported by Status.
+	// Interval drives both the Sentry monitor schedule and the staleness
+	// threshold reported by Status.
 	Interval time.Duration
 
-	// LockTTL bounds how long the distributed lock is held. It must exceed the
-	// worst-case runtime, otherwise a second replica can start the job while the
-	// first is still working. Defaults to twice Interval.
+	// LockTTL must exceed the worst-case runtime, otherwise a second replica can
+	// start the job while the first is still working. Defaults to 2*Interval.
 	LockTTL time.Duration
 
-	// Unlocked runs the job without taking the distributed lock. Set it only for
-	// a service that runs a single replica and whose job was never locked to
-	// begin with: locking such a job would make an unreachable Redis stop it
-	// entirely, trading a working cron for an observable one.
+	// Unlocked skips the distributed lock. Set it only for a single-replica
+	// service whose job was never locked: locking it would let an unreachable
+	// Redis stop the cron entirely, trading a working job for an observable one.
 	Unlocked bool
 
-	// Description is a human-readable note shown by the status endpoint.
 	Description string
 }
 
@@ -75,9 +69,8 @@ type Monitor struct {
 	instance string
 }
 
-// New creates a Monitor for the given service. service is the name the jobs are
-// reported under, e.g. "integration-app". A nil client degrades gracefully: jobs
-// still run, they are simply not observable.
+// New creates a Monitor for the given service. A nil client degrades
+// gracefully: jobs still run, they are simply not observable.
 func New(client *redis.Client, service string) *Monitor {
 	instance, err := os.Hostname()
 	if err != nil {
@@ -107,8 +100,8 @@ func (m *Monitor) heartbeatKey(job string) string {
 	return HeartbeatKeyPrefix + m.service + ":" + job
 }
 
-// monitorSlug builds the Sentry monitor slug. Sentry slugs are lowercase and
-// capped at 50 characters.
+// monitorSlug builds the Sentry monitor slug, which must be lowercase and at
+// most 50 characters.
 func (m *Monitor) monitorSlug(job string) string {
 	slug := strings.ToLower(m.service + "-" + strings.ReplaceAll(job, "_", "-"))
 	if len(slug) > 50 {
@@ -118,7 +111,7 @@ func (m *Monitor) monitorSlug(job string) string {
 }
 
 // Register publishes a job's schedule before it has ever run, so a cron that
-// never starts is still listed by Status instead of being invisible.
+// never starts is listed by Status instead of being invisible.
 func (m *Monitor) Register(ctx context.Context, spec JobSpec) {
 	if m.client == nil {
 		return
@@ -139,8 +132,7 @@ func (m *Monitor) Register(ctx context.Context, spec JobSpec) {
 	m.client.Expire(ctx, key, heartbeatTTL)
 }
 
-// Wrap adapts a job to the func() signature schedulers expect, running it
-// through Run.
+// Wrap adapts a job to the func() signature schedulers expect.
 func (m *Monitor) Wrap(spec JobSpec, fn func() error) func() {
 	return func() {
 		m.Run(context.Background(), spec, fn)
@@ -148,12 +140,9 @@ func (m *Monitor) Wrap(spec JobSpec, fn func() error) func() {
 }
 
 // Run executes fn while holding the job's distributed lock, recording the
-// outcome to Redis and Sentry. When another replica already holds the lock the
-// job is skipped without recording anything, so the heartbeat always reflects
-// the replica that actually did the work.
-//
-// A panic inside fn is recovered and recorded as a failure: an unobserved panic
-// in a scheduled job is exactly the failure mode this package exists to catch.
+// outcome to Redis and Sentry. When another replica holds the lock the job is
+// skipped without recording anything, so the heartbeat always reflects the
+// replica that did the work.
 func (m *Monitor) Run(ctx context.Context, spec JobSpec, fn func() error) {
 	if !spec.Unlocked {
 		key := distlock.BuildLockKey(m.service + ":" + spec.Name)

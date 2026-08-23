@@ -11,8 +11,8 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// Redis hash fields of a heartbeat. Kept as constants because the status
-// endpoint of any service reads hashes written by every other service.
+// Redis hash fields of a heartbeat. Constants because every service reads the
+// hashes written by every other service.
 const (
 	fieldService      = "service"
 	fieldJob          = "job"
@@ -38,8 +38,7 @@ const (
 	HealthOK Health = "ok"
 	// HealthFailing means the most recent run returned an error or panicked.
 	HealthFailing Health = "failing"
-	// HealthStale means no run has been recorded for far longer than the
-	// schedule allows: the job is most likely dead.
+	// HealthStale means nothing has run for far longer than the schedule allows.
 	HealthStale Health = "stale"
 	// HealthNeverRun means the job is registered but has not run yet.
 	HealthNeverRun Health = "never_run"
@@ -64,9 +63,8 @@ type JobStatus struct {
 	ConsecutiveFailures int64      `json:"consecutive_failures"`
 }
 
-// markStarted records that a run began. run_count is incremented here rather
-// than on completion so that a job killed mid-run (OOM, pod eviction) still
-// leaves a trace of having started.
+// markStarted increments run_count on start rather than on completion, so a
+// job killed mid-run (OOM, pod eviction) still leaves a trace.
 func (m *Monitor) markStarted(ctx context.Context, spec JobSpec, start time.Time) {
 	if m.client == nil {
 		return
@@ -119,8 +117,8 @@ func (m *Monitor) markFinished(ctx context.Context, spec JobSpec, duration time.
 	}
 }
 
-// Status returns every cron heartbeat currently in Redis, across all services.
-// Pass a service name to narrow the scan to one service, or "" for all.
+// Status returns every cron heartbeat in Redis. Pass a service name to narrow
+// the scan to one service, or "" for all.
 func Status(ctx context.Context, client *redis.Client, service string) ([]JobStatus, error) {
 	if client == nil {
 		return []JobStatus{}, nil
@@ -211,8 +209,8 @@ func buildStatus(key string, fields map[string]string) JobStatus {
 	return status
 }
 
-// classify decides a job's health. Failing outranks stale so that a job which
-// runs but errors is reported as failing rather than merely overdue.
+// classify decides a job's health. Failing outranks stale: a job that runs but
+// errors is reported as failing rather than merely overdue.
 func classify(status JobStatus) Health {
 	if status.ConsecutiveFailures > 0 {
 		return HealthFailing
