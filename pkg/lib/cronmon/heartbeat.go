@@ -11,8 +11,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// Redis hash fields of a heartbeat. Constants because every service reads the
-// hashes written by every other service.
+// Every service reads the hashes written by every other service.
 const (
 	fieldService      = "service"
 	fieldJob          = "job"
@@ -34,13 +33,9 @@ const (
 type Health string
 
 const (
-	// HealthOK means the last run succeeded and the next one is not overdue.
-	HealthOK Health = "ok"
-	// HealthFailing means the most recent run returned an error or panicked.
-	HealthFailing Health = "failing"
-	// HealthStale means nothing has run for far longer than the schedule allows.
-	HealthStale Health = "stale"
-	// HealthNeverRun means the job is registered but has not run yet.
+	HealthOK       Health = "ok"
+	HealthFailing  Health = "failing"
+	HealthStale    Health = "stale"
 	HealthNeverRun Health = "never_run"
 )
 
@@ -63,8 +58,7 @@ type JobStatus struct {
 	ConsecutiveFailures int64      `json:"consecutive_failures"`
 }
 
-// markStarted increments run_count on start rather than on completion, so a
-// job killed mid-run (OOM, pod eviction) still leaves a trace.
+// run_count is incremented on start, so a job killed mid-run still leaves a trace.
 func (m *Monitor) markStarted(ctx context.Context, spec JobSpec, start time.Time) {
 	if m.client == nil {
 		return
@@ -117,8 +111,7 @@ func (m *Monitor) markFinished(ctx context.Context, spec JobSpec, duration time.
 	}
 }
 
-// Status returns every cron heartbeat in Redis. Pass a service name to narrow
-// the scan to one service, or "" for all.
+// Status returns every cron heartbeat in Redis. Pass "" to scan all services.
 func Status(ctx context.Context, client *redis.Client, service string) ([]JobStatus, error) {
 	if client == nil {
 		return []JobStatus{}, nil
@@ -187,7 +180,7 @@ func buildStatus(key string, fields map[string]string) JobStatus {
 		ConsecutiveFailures: parseInt(fields[fieldConsecFails]),
 	}
 
-	// Older heartbeats may predate the service/job fields; recover them from the key.
+	// Older heartbeats predate these fields; recover them from the key.
 	if status.Service == "" || status.Job == "" {
 		if trimmed := strings.TrimPrefix(key, HeartbeatKeyPrefix); trimmed != key {
 			if service, job, ok := strings.Cut(trimmed, ":"); ok {
@@ -209,8 +202,7 @@ func buildStatus(key string, fields map[string]string) JobStatus {
 	return status
 }
 
-// classify decides a job's health. Failing outranks stale: a job that runs but
-// errors is reported as failing rather than merely overdue.
+// Failing outranks stale: a job that runs but errors is not merely overdue.
 func classify(status JobStatus) Health {
 	if status.ConsecutiveFailures > 0 {
 		return HealthFailing
