@@ -61,30 +61,20 @@ func TestLockTTLDefaultsToTwiceInterval(t *testing.T) {
 	utils.AssertEqual(t, time.Minute, JobSpec{Interval: 5 * time.Minute, LockTTL: time.Minute}.lockTTL())
 }
 
-// No lock means skip, not run unlocked on every replica at once.
-func TestRunWithoutRedisSkips(t *testing.T) {
-	m := New(nil, "integration-app")
+// Fail-closed: no lock means no run, for every job. A duplicate enqueue sends
+// a customer a second email, while a skipped tick only delays one.
+func TestRunWithoutLockSkips(t *testing.T) {
+	for _, service := range []string{"integration-app", "queue-app"} {
+		m := New(nil, service)
 
-	executed := false
-	m.Run(context.Background(), JobSpec{Name: "job", Interval: time.Minute}, func() error {
-		executed = true
-		return nil
-	})
+		executed := false
+		m.Run(context.Background(), JobSpec{Name: "job", Interval: time.Minute}, func() error {
+			executed = true
+			return nil
+		})
 
-	utils.AssertEqual(t, false, executed)
-}
-
-// Monitoring a job must never be the reason it stops.
-func TestFailOpenRunsWithoutRedis(t *testing.T) {
-	m := New(nil, "queue-app")
-
-	executed := false
-	m.Run(context.Background(), JobSpec{Name: "job", Interval: time.Minute, FailOpen: true}, func() error {
-		executed = true
-		return nil
-	})
-
-	utils.AssertEqual(t, true, executed)
+		utils.AssertEqual(t, false, executed)
+	}
 }
 
 // An unstoppable renewal goroutine leaks one per run.
