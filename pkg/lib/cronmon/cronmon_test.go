@@ -14,16 +14,13 @@ func TestClassify(t *testing.T) {
 	recent := now.Add(-30 * time.Second)
 	old := now.Add(-10 * time.Minute)
 
-	// A job that has never started is registered but not yet observed.
 	utils.AssertEqual(t, HealthNeverRun, classify(JobStatus{IntervalSeconds: 60}))
 
-	// Started but never succeeded means the very first run broke.
 	utils.AssertEqual(t, HealthFailing, classify(JobStatus{
 		IntervalSeconds: 60,
 		LastStart:       &now,
 	}))
 
-	// A recent failure outranks an older success.
 	utils.AssertEqual(t, HealthFailing, classify(JobStatus{
 		IntervalSeconds:     60,
 		LastStart:           &now,
@@ -31,21 +28,19 @@ func TestClassify(t *testing.T) {
 		ConsecutiveFailures: 1,
 	}))
 
-	// Succeeding within the interval is healthy.
 	utils.AssertEqual(t, HealthOK, classify(JobStatus{
 		IntervalSeconds: 60,
 		LastStart:       &now,
 		LastSuccess:     &recent,
 	}))
 
-	// No success for more than two intervals means the job is likely dead.
 	utils.AssertEqual(t, HealthStale, classify(JobStatus{
 		IntervalSeconds: 60,
 		LastStart:       &old,
 		LastSuccess:     &old,
 	}))
 
-	// Without a known interval staleness cannot be judged, so a success stands.
+	// Without an interval, staleness cannot be judged and a success stands.
 	utils.AssertEqual(t, HealthOK, classify(JobStatus{LastSuccess: &old}))
 }
 
@@ -66,8 +61,7 @@ func TestLockTTLDefaultsToTwiceInterval(t *testing.T) {
 	utils.AssertEqual(t, time.Minute, JobSpec{Interval: 5 * time.Minute, LockTTL: time.Minute}.lockTTL())
 }
 
-// Without Redis the lock cannot be acquired, so the job is skipped rather than
-// run unlocked on every replica at once.
+// No lock means skip, not run unlocked on every replica at once.
 func TestRunWithoutRedisSkips(t *testing.T) {
 	m := New(nil, "integration-app")
 
@@ -80,13 +74,12 @@ func TestRunWithoutRedisSkips(t *testing.T) {
 	utils.AssertEqual(t, false, executed)
 }
 
-// An unlocked job must keep running even with Redis unavailable: monitoring a
-// job must never be the reason it stops.
-func TestUnlockedRunsWithoutRedis(t *testing.T) {
+// Monitoring a job must never be the reason it stops.
+func TestFailOpenRunsWithoutRedis(t *testing.T) {
 	m := New(nil, "queue-app")
 
 	executed := false
-	m.Run(context.Background(), JobSpec{Name: "job", Interval: time.Minute, Unlocked: true}, func() error {
+	m.Run(context.Background(), JobSpec{Name: "job", Interval: time.Minute, FailOpen: true}, func() error {
 		executed = true
 		return nil
 	})
@@ -94,8 +87,31 @@ func TestUnlockedRunsWithoutRedis(t *testing.T) {
 	utils.AssertEqual(t, true, executed)
 }
 
+// An unstoppable renewal goroutine leaks one per run.
+func TestRenewLockStops(t *testing.T) {
+	m := New(nil, "integration-app")
+
+	returned := make(chan struct{})
+	go func() {
+		defer close(returned)
+		m.renewLock(context.Background(), "cron:lock:job", JobSpec{Name: "job", Interval: time.Minute})()
+	}()
+
+	select {
+	case <-returned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("renewLock stop function did not return")
+	}
+}
+
+// No TTL means renewal is disabled rather than ticking forever.
+func TestRenewLockDisabledWithoutTTL(t *testing.T) {
+	m := New(nil, "integration-app")
+	m.renewLock(context.Background(), "cron:lock:job", JobSpec{Name: "job"})()
+}
+
 func TestRunProtectedTurnsPanicIntoError(t *testing.T) {
-	// Must not propagate: a panicking job would otherwise take down the scheduler.
+	// Must not propagate, or the scheduler goes down with the job.
 	err := runProtected(func() error {
 		panic("boom")
 	})
