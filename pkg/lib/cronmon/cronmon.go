@@ -37,11 +37,6 @@ type JobSpec struct {
 	// Defaults to 2*Interval.
 	LockTTL time.Duration
 
-	// Run anyway when the lock backend is unreachable. Still skipped when
-	// another replica holds the lock, so rolling deploys stay protected without
-	// making Redis a new point of failure.
-	FailOpen bool
-
 	Description string
 }
 
@@ -130,27 +125,27 @@ func (m *Monitor) Wrap(spec JobSpec, fn func() error) func() {
 }
 
 // Run executes fn while holding the job's lock, recording the outcome to Redis
-// and Sentry. A run skipped because another replica holds the lock records
-// nothing, so the heartbeat always reflects the replica that did the work.
+// and Sentry. A skipped run records nothing, so the heartbeat always reflects
+// the replica that did the work.
+//
+// No lock means no run, including when Redis itself is unreachable. These jobs
+// enqueue customer email and financial records, where a duplicate is visible
+// and irreversible while a delayed run is not: the work is read from the
+// database, so the next tick sweeps up whatever accumulated.
 func (m *Monitor) Run(ctx context.Context, spec JobSpec, fn func() error) {
 	key := distlock.BuildLockKey(m.service + ":" + spec.Name)
 	acquired, err := m.lock.Acquire(ctx, key, spec.lockTTL())
 	if err != nil || !acquired {
-		// Acquire reports "held by another replica" and "backend unreachable"
-		// identically, and those need opposite responses.
-		if !spec.FailOpen || m.lockReachable(ctx) {
-			return
-		}
-		log.Printf("[CronMon] job %s/%s running unlocked: lock backend unreachable", m.service, spec.Name)
-	} else {
-		stopRenew := m.renewLock(ctx, key, spec)
-		defer func() {
-			stopRenew()
-			if releaseErr := m.lock.Release(ctx, key); releaseErr != nil {
-				log.Printf("[CronMon] failed releasing lock for job %s: %v", spec.Name, releaseErr)
-			}
-		}()
+		return
 	}
+
+	stopRenew := m.renewLock(ctx, key, spec)
+	defer func() {
+		stopRenew()
+		if releaseErr := m.lock.Release(ctx, key); releaseErr != nil {
+			log.Printf("[CronMon] failed releasing lock for job %s: %v", spec.Name, releaseErr)
+		}
+	}()
 
 	start := time.Now()
 	checkInID := m.checkIn(spec, sentry.CheckInStatusInProgress, 0)
@@ -169,13 +164,6 @@ func (m *Monitor) Run(ctx context.Context, spec JobSpec, fn func() error) {
 	log.Printf("[CronMon] job %s/%s ok in %s", m.service, spec.Name, duration)
 	m.checkInWithID(checkInID, spec, sentry.CheckInStatusOK, duration)
 	m.markFinished(ctx, spec, duration, nil)
-}
-
-func (m *Monitor) lockReachable(ctx context.Context) bool {
-	if m.client == nil {
-		return false
-	}
-	return m.client.Ping(ctx).Err() == nil
 }
 
 // renewLock keeps the lock alive while the job runs and returns a stop
